@@ -6,42 +6,70 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
-	"unicode/utf8"
+	"net/url"
+	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/julienschmidt/httprouter"
-)
-
-var (
-	ErrIdTooLong           = errors.New("ID is too long")
-	ErrIdInvalidUTF8       = errors.New("ID contains invalid UTF-8 characters")
-	ErrIdProhibitedChar    = errors.New("ID contains prohibited character")
-	ErrIdProhibitedPattern = errors.New("ID matches prohibited pattern")
+	"github.com/mroobert/tixer-pkgs/validate"
 )
 
 // ReadIDParam standardizes the way we read & validate url ID parameters across the Tixer services.
-// The validation rules are relative to firestore.
-func ReadIDParam(r *http.Request) (string, error) {
+func ReadIDParam(r *http.Request) (uuid.UUID, error) {
 	params := httprouter.ParamsFromContext(r.Context())
-	id := params.ByName("id")
+	input := params.ByName("id")
 
-	if len(id) > 1500 {
-		return "", fmt.Errorf(" %q: %w", id, ErrIdTooLong)
-	}
-
-	if !utf8.ValidString(id) {
-		return "", fmt.Errorf(" %q: %w", id, ErrIdInvalidUTF8)
-	}
-
-	if strings.Contains(id, "/") || strings.Contains(id, "\\") {
-		return "", fmt.Errorf(" %q: %w", id, ErrIdProhibitedChar)
-	}
-
-	if id == "." || id == ".." || strings.HasPrefix(id, "__") || strings.HasSuffix(id, "__") {
-		return "", fmt.Errorf(" %q: %w", id, ErrIdProhibitedPattern)
+	id, err := uuid.Parse(input)
+	if err != nil {
+		return uuid.Nil, err
 	}
 
 	return id, nil
+}
+
+// ReadUUID standardizes the way we read & validate url UUID parameters across the Tixer services.
+func ReadUUID(qs url.Values, key string, defaultValue uuid.UUID, vld *validate.Validator) uuid.UUID {
+	v := qs.Get(key)
+
+	if v == "" {
+		return defaultValue
+	}
+
+	id, err := uuid.Parse(v)
+	if err != nil {
+		vld.AddError(key, fmt.Sprintf("'%s' is not a valid UUID: %s", v, err.Error()))
+		return uuid.Nil
+	}
+
+	return id
+}
+
+// ReadInt standardizes the way we read url integer parameters across the Tixer services.
+func ReadInt(qs url.Values, key string, defaultValue int, vld *validate.Validator) int {
+	v := qs.Get(key)
+
+	if v == "" {
+		return defaultValue
+	}
+
+	i, err := strconv.Atoi(v)
+	if err != nil {
+		vld.AddError(key, "must be an integer value")
+		return defaultValue
+	}
+
+	return i
+}
+
+// ReadString standardizes the way we read url string parameters across the Tixer services.
+func ReadString(qs url.Values, key string, defaultValue string) string {
+	s := qs.Get(key)
+
+	if s == "" {
+		return defaultValue
+	}
+
+	return s
 }
 
 // ReadJSON is a helper function to standardize the way we read JSON request data across the Tixer services.
