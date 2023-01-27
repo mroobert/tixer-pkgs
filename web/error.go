@@ -30,6 +30,12 @@ func FailedValidationResponse(log *slog.Logger, w http.ResponseWriter, r *http.R
 	errorResponse(log, w, r, http.StatusUnprocessableEntity, errors)
 }
 
+// InvalidAuthenticationResponse method will be used to send a 401 Auhorization Required.
+func InvalidAuthenticationResponse(log *slog.Logger, w http.ResponseWriter, r *http.Request) {
+	message := "invalid or missing authentication credentials"
+	errorResponse(log, w, r, http.StatusUnauthorized, message)
+}
+
 // logError method is a generic helper for logging an error message.
 func logError(log *slog.Logger, r *http.Request, err error) {
 	log.Error("internal error", err, "request_method", r.Method, "request_url", r.URL.String())
